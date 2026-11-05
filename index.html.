@@ -1,1 +1,158 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mamka potřebuje pomoc</title>
 
+<style>
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: Arial, sans-serif;
+    background: #182333;
+    color: white;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.panel {
+    width: 90%;
+    max-width: 600px;
+    padding: 25px;
+    background: #26384d;
+    border-radius: 20px;
+    text-align: center;
+}
+
+h1 {
+    margin-bottom: 30px;
+}
+
+button {
+    border: none;
+    color: white;
+    font-size: 20px;
+    font-weight: bold;
+    padding: 22px;
+    border-radius: 15px;
+    cursor: pointer;
+    transition: transform 0.12s, filter 0.12s;
+}
+
+button:active {
+    transform: scale(0.94);
+    filter: brightness(0.75);
+}
+
+.start {
+    background: #159957;
+}
+
+.stop {
+    background: #d93636;
+}
+
+.blue {
+    background: #1878d1;
+    width: 100%;
+    margin-top: 15px;
+}
+
+.controls {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+}
+
+.status {
+    margin-top: 25px;
+    padding: 15px;
+    background: #172536;
+    border-radius: 10px;
+}
+
+.admin {
+    margin-top: 20px;
+    background: #52647a;
+    font-size: 15px;
+    padding: 12px;
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="panel">
+
+<h1>🏠 Mamka potřebuje pomoc</h1>
+
+<div class="controls">
+
+<button class="start" onclick="odeslat('START')">
+START
+</button>
+
+<button class="stop" onclick="odeslat('STOP')">
+STOP
+</button>
+
+</div>
+
+<button class="blue" onclick="odeslat('MODRY_KOD')">
+🔵 MODRÝ KÓD
+</button>
+
+<div class="status" id="stav">
+Systém čeká na připojení přijímače.
+</div>
+
+<button class="admin" onclick="admin()">
+⚙ ADMINISTRACE
+</button>
+
+</div>
+
+<script>
+
+async function odeslat(prikaz) {
+
+    const stav = document.getElementById("stav");
+
+    stav.textContent = "Odesílám příkaz: " + prikaz;
+
+    try {
+        const odpoved = await fetch("/api/command", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({command: prikaz})
+        });
+
+        if (!odpoved.ok) {
+            throw new Error("Příkaz nebyl přijat.");
+        }
+
+        stav.textContent = "Příkaz přijat: " + prikaz;
+
+    } catch (chyba) {
+        stav.textContent =
+            "Přijímač zatím není připojen.";
+    }
+}
+
+function admin() {
+    alert("Administrace bude doplněna v další verzi.");
+}
+
+</script>
+
+</body>
+</html>
