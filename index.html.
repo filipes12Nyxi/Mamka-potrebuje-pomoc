@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="cs">
 <head>
@@ -6,9 +7,7 @@
 <title>Mamka potřebuje pomoc</title>
 
 <style>
-* {
-    box-sizing: border-box;
-}
+* { box-sizing: border-box; }
 
 body {
     margin: 0;
@@ -19,6 +18,7 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
+    padding: 15px;
 }
 
 .panel {
@@ -30,9 +30,7 @@ body {
     text-align: center;
 }
 
-h1 {
-    margin-bottom: 30px;
-}
+h1 { margin-bottom: 30px; }
 
 button {
     border: none;
@@ -50,13 +48,8 @@ button:active {
     filter: brightness(0.75);
 }
 
-.start {
-    background: #159957;
-}
-
-.stop {
-    background: #d93636;
-}
+.start { background: #159957; }
+.stop { background: #d93636; }
 
 .blue {
     background: #1878d1;
@@ -84,6 +77,35 @@ button:active {
     padding: 12px;
 }
 
+.adminPanel {
+    display: none;
+    margin-top: 20px;
+    padding: 18px;
+    background: #172536;
+    border-radius: 12px;
+}
+
+.adminPanel select,
+.adminPanel button {
+    width: 100%;
+    margin-top: 12px;
+}
+
+.adminPanel select {
+    padding: 12px;
+    border-radius: 8px;
+    font-size: 16px;
+}
+
+.record { background: #a34acb; }
+.finish { background: #52647a; }
+.save { background: #159957; }
+
+.small {
+    font-size: 14px;
+    font-weight: normal;
+    line-height: 1.5;
+}
 </style>
 </head>
 
@@ -94,45 +116,73 @@ button:active {
 <h1>🏠 Mamka potřebuje pomoc</h1>
 
 <div class="controls">
+    <button class="start" onclick="odeslat('START')">
+        START
+    </button>
 
-<button class="start" onclick="odeslat('START')">
-START
-</button>
-
-<button class="stop" onclick="odeslat('STOP')">
-STOP
-</button>
-
+    <button class="stop" onclick="odeslat('STOP')">
+        STOP
+    </button>
 </div>
 
 <button class="blue" onclick="odeslat('MODRY_KOD')">
-🔵 MODRÝ KÓD
+    🔵 MODRÝ KÓD
 </button>
 
 <div class="status" id="stav">
-Systém čeká na připojení přijímače.
+    Systém čeká na připojení přijímače.
 </div>
 
 <button class="admin" onclick="admin()">
-⚙ ADMINISTRACE
+    ⚙ ADMINISTRACE
 </button>
+
+<div class="adminPanel" id="adminPanel">
+    <h2>🎙️ Hlasové zprávy</h2>
+
+    <p class="small">
+        Vyber tlačítko, ke kterému chceš nahrát hlasovou zprávu.
+    </p>
+
+    <select id="vyber">
+        <option value="start.wav">START</option>
+        <option value="stop.wav">STOP</option>
+        <option value="modry_kod.wav">MODRÝ KÓD</option>
+    </select>
+
+    <button class="record" id="nahrat" onclick="nahravani()">
+        🎙️ ZAČÍT NAHRÁVAT
+    </button>
+
+    <button class="finish" id="zastavit" onclick="zastavitNahravani()" disabled>
+        ⏹ UKONČIT NAHRÁVÁNÍ
+    </button>
+
+    <button class="save" id="ulozit" onclick="ulozitNahravku()" disabled>
+        💾 ULOŽIT NAHRÁVKU
+    </button>
+
+    <div class="status" id="stavNahravani">
+        Zatím není pořízena žádná nahrávka.
+    </div>
+
+    <p class="small">
+        Nahrávka se uloží do počítače a bude ji přehrávat
+        přijímač přes připojený reproduktor.
+    </p>
+</div>
 
 </div>
 
 <script>
-
 async function odeslat(prikaz) {
-
     const stav = document.getElementById("stav");
-
     stav.textContent = "Odesílám příkaz: " + prikaz;
 
     try {
         const odpoved = await fetch("/api/command", {
             method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
+            headers: {"Content-Type": "application/json"},
             body: JSON.stringify({command: prikaz})
         });
 
@@ -141,17 +191,161 @@ async function odeslat(prikaz) {
         }
 
         stav.textContent = "Příkaz přijat: " + prikaz;
-
     } catch (chyba) {
-        stav.textContent =
-            "Přijímač zatím není připojen.";
+        stav.textContent = "Přijímač zatím není připojen.";
     }
 }
 
 function admin() {
-    alert("Administrace bude doplněna v další verzi.");
+    const panel = document.getElementById("adminPanel");
+    panel.style.display =
+        panel.style.display === "block" ? "none" : "block";
 }
 
+let audioContext;
+let zdroj;
+let procesor;
+let stream;
+let casti = [];
+let vzorkovaciFrekvence = 44100;
+let nahravaniAktivni = false;
+let hotovaNahravka = null;
+
+async function nahravani() {
+    try {
+        stream = await navigator.mediaDevices.getUserMedia({
+            audio: true
+        });
+
+        audioContext = new AudioContext();
+        vzorkovaciFrekvence = audioContext.sampleRate;
+
+        zdroj = audioContext.createMediaStreamSource(stream);
+        procesor = audioContext.createScriptProcessor(4096, 1, 1);
+
+        casti = [];
+        hotovaNahravka = null;
+        nahravaniAktivni = true;
+
+        procesor.onaudioprocess = function(e) {
+            if (!nahravaniAktivni) return;
+
+            casti.push(
+                new Float32Array(e.inputBuffer.getChannelData(0))
+            );
+        };
+
+        zdroj.connect(procesor);
+        procesor.connect(audioContext.destination);
+
+        document.getElementById("nahrat").disabled = true;
+        document.getElementById("zastavit").disabled = false;
+        document.getElementById("ulozit").disabled = true;
+
+        document.getElementById("stavNahravani").textContent =
+            "🔴 Nahrávání probíhá...";
+    } catch (chyba) {
+        document.getElementById("stavNahravani").textContent =
+            "Nepodařilo se zapnout mikrofon. Povol jeho používání.";
+    }
+}
+
+function zastavitNahravani() {
+    if (!nahravaniAktivni) return;
+
+    nahravaniAktivni = false;
+
+    zdroj.disconnect();
+    procesor.disconnect();
+    stream.getTracks().forEach(track => track.stop());
+
+    const delka = casti.reduce((s, cast) => s + cast.length, 0);
+    const data = new Float32Array(delka);
+
+    let pozice = 0;
+    for (const cast of casti) {
+        data.set(cast, pozice);
+        pozice += cast.length;
+    }
+
+    hotovaNahravka = vytvorWav(data, vzorkovaciFrekvence);
+
+    document.getElementById("nahrat").disabled = false;
+    document.getElementById("zastavit").disabled = true;
+    document.getElementById("ulozit").disabled = false;
+
+    document.getElementById("stavNahravani").textContent =
+        "Nahrávka je připravena k uložení.";
+}
+
+function vytvorWav(data, frekvence) {
+    const buffer = new ArrayBuffer(44 + data.length * 2);
+    const view = new DataView(buffer);
+
+    function zapisText(offset, text) {
+        for (let i = 0; i < text.length; i++) {
+            view.setUint8(offset + i, text.charCodeAt(i));
+        }
+    }
+
+    zapisText(0, "RIFF");
+    view.setUint32(4, 36 + data.length * 2, true);
+    zapisText(8, "WAVE");
+    zapisText(12, "fmt ");
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, 1, true);
+    view.setUint32(24, frekvence, true);
+    view.setUint32(28, frekvence * 2, true);
+    view.setUint16(32, 2, true);
+    view.setUint16(34, 16, true);
+    zapisText(36, "data");
+    view.setUint32(40, data.length * 2, true);
+
+    let offset = 44;
+
+    for (let i = 0; i < data.length; i++) {
+        let hodnota = Math.max(-1, Math.min(1, data[i]));
+        view.setInt16(
+            offset,
+            hodnota < 0 ? hodnota * 32768 : hodnota * 32767,
+            true
+        );
+        offset += 2;
+    }
+
+    return new Blob([buffer], {type: "audio/wav"});
+}
+
+async function ulozitNahravku() {
+    if (!hotovaNahravka) return;
+
+    const nazev = document.getElementById("vyber").value;
+    const stav = document.getElementById("stavNahravani");
+
+    stav.textContent = "Ukládám nahrávku do počítače...";
+
+    try {
+        const odpoved = await fetch(
+            "/api/audio?name=" + encodeURIComponent(nazev),
+            {
+                method: "POST",
+                headers: {"Content-Type": "audio/wav"},
+                body: hotovaNahravka
+            }
+        );
+
+        if (!odpoved.ok) {
+            throw new Error("Přijímač nahrávku nepřijal.");
+        }
+
+        stav.textContent = "✅ Nahrávka byla uložena: " + nazev;
+        document.getElementById("ulozit").disabled = true;
+    } catch (chyba) {
+        stav.textContent =
+            "Nahrávku se nepodařilo uložit. Nejdřív musíme upravit přijímač.";
+    }
+}
 </script>
 
 </body>
